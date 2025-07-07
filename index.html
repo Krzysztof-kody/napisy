@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Wyszukiwanie napisów z AnimeTosho</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f6f7fa;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 540px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 16px #0001;
+            padding: 2em 2.5em 2em 2.5em;
+        }
+        h1 {
+            font-size: 1.5em;
+            color: #2d3e50;
+            margin-bottom: 1em;
+            text-align: center;
+        }
+        label {
+            font-weight: 500;
+            margin-bottom: 0.2em;
+            display: block;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 0.6em;
+            margin-bottom: 1em;
+            border: 1px solid #c8d0db;
+            border-radius: 6px;
+            background: #f9fafc;
+            font-size: 1em;
+        }
+        button {
+            background: #3867d6;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 0.7em 2em;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 1em;
+            margin-top: 0.5em;
+        }
+        button:hover {
+            background: #274b8a;
+        }
+        #results {
+            margin-top: 2em;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1em;
+            background: #fafbfc;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 0.8em 0.5em;
+            text-align: left;
+        }
+        th {
+            background: #eaf0fa;
+            color: #29406b;
+            font-size: 1em;
+            border-bottom: 2px solid #d5dbe7;
+        }
+        tr:nth-child(even) {
+            background: #f3f5fa;
+        }
+        tr:hover {
+            background: #e3e8f3;
+        }
+        .download-link {
+            color: #3867d6;
+            font-weight: 500;
+            text-decoration: none;
+            border: 1px solid #3867d6;
+            border-radius: 4px;
+            padding: 0.3em 1em;
+            transition: background 0.2s, color 0.2s;
+        }
+        .download-link:hover {
+            background: #3867d6;
+            color: #fff;
+        }
+        .error {
+            color: #c0392b;
+            margin-top: 1em;
+            font-weight: 500;
+        }
+        @media (max-width: 600px) {
+            .container { padding: 1em 0.5em; }
+            th, td { font-size: 0.95em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Wyszukiwarka angielskich napisów (.ass.xz) z AnimeTosho</h1>
+        <label>
+            Tytuł anime:
+            <input type="text" id="title" placeholder="np. Gachiakuta" required>
+        </label>
+        <label>
+            Sezon:
+            <input type="number" id="season" min="1" required>
+        </label>
+        <label>
+            Odcinek:
+            <input type="number" id="episode" min="1" required>
+        </label>
+        <button onclick="searchSubtitles()">Szukaj napisów</button>
+        <div id="results"></div>
+    </div>
+    <script>
+    async function searchSubtitles() {
+        const title = document.getElementById('title').value.trim();
+        const season = document.getElementById('season').value.trim();
+        const episode = document.getElementById('episode').value.trim();
+        const resultsDiv = document.getElementById('results');
+        resultsDiv.innerHTML = "Szukam...";
+
+        const searchQuery = encodeURIComponent(`${title} s${season.padStart(2,'0')}e${episode.padStart(2,'0')}`);
+        const searchUrl = `https://animetosho.org/search?filter%5B0%5D%5Bt%5D=nyaa_class&filter%5B0%5D%5Bv%5D=&order=&disp=attachments&q=${searchQuery}`;
+        const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(searchUrl);
+
+        try {
+            const res = await fetch(proxyUrl);
+            const html = await res.text();
+
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+
+            // Szukaj sekcji z linkami do napisów
+            const linksDivs = Array.from(doc.querySelectorAll('div.links'));
+            let linksFound = [];
+
+            for (const linksDiv of linksDivs) {
+                // Szukaj wszystkich linków .ass.xz z tekstem "eng"
+                const links = Array.from(linksDiv.querySelectorAll('a[href$=".ass.xz"]'));
+                for (const link of links) {
+                    const linkText = link.textContent.toLowerCase();
+                    if (linkText.includes('eng')) {
+                        let href = link.href;
+                        if (href.startsWith('/')) {
+                            href = 'https://animetosho.org' + href;
+                        }
+                        // Wyciągnij nazwę pliku z hrefa (po ostatnim '/')
+                        let filename = decodeURIComponent(href.split('/').pop());
+                        // Opis (np. English [eng, ASS])
+                        let desc = link.textContent;
+                        linksFound.push({
+                            filename: filename,
+                            desc: desc,
+                            url: href
+                        });
+                    }
+                }
+            }
+
+            if (linksFound.length > 0) {
+                let tableHtml = `
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Nazwa pliku</th>
+                      <th>Opis</th>
+                      <th>Pobierz</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                `;
+                for (const sub of linksFound) {
+                    tableHtml += `
+                    <tr>
+                      <td>${sub.filename}</td>
+                      <td>${sub.desc}</td>
+                      <td><a href="${sub.url}" class="download-link" download>Pobierz</a></td>
+                    </tr>
+                    `;
+                }
+                tableHtml += `</tbody></table>`;
+                resultsDiv.innerHTML = `<p>Znaleziono <b>${linksFound.length}</b> angielskich napisów (.ass.xz):</p>${tableHtml}`;
+            } else {
+                resultsDiv.innerHTML = "<div class='error'>Nie znaleziono angielskich napisów .ass.xz dla podanych parametrów.</div>";
+            }
+
+        } catch (e) {
+            resultsDiv.innerHTML = `<div class="error">Błąd podczas pobierania strony lub ograniczenia CORS.</div>`;
+        }
+    }
+    </script>
+</body>
+</html>
