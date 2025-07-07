@@ -11,7 +11,7 @@
             padding: 0;
         }
         .container {
-            max-width: 700px;
+            max-width: 540px;
             margin: 40px auto;
             background: #fff;
             border-radius: 12px;
@@ -23,6 +23,28 @@
             color: #2d3e50;
             margin-bottom: 1em;
             text-align: center;
+        }
+        nav {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2em;
+        }
+        .menu-link {
+            display: inline-block;
+            padding: 0.7em 1.5em;
+            margin: 0 0.3em;
+            background: #eaf0fa;
+            color: #29406b;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background 0.2s, color 0.2s;
+            border: 1px solid #d5dbe7;
+        }
+        .menu-link.active, .menu-link:hover {
+            background: #3867d6;
+            color: #fff;
+            border-color: #3867d6;
         }
         label {
             font-weight: 500;
@@ -102,11 +124,17 @@
         @media (max-width: 600px) {
             .container { padding: 1em 0.5em; }
             th, td { font-size: 0.95em; }
+            nav { flex-direction: column; }
+            .menu-link { margin: 0.2em 0; }
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <nav>
+            <a href="index.html" class="menu-link" id="menu-index">Wyszukiwarka napisów</a>
+            <a href="ass2srt.html" class="menu-link" id="menu-ass2srt">Konwerter ASS→SRT</a>
+        </nav>
         <h1>Wyszukiwarka angielskich napisów (.ass.xz) z AnimeTosho</h1>
         <label>
             Tytuł anime:
@@ -124,6 +152,16 @@
         <div id="results"></div>
     </div>
     <script>
+    // Podświetl aktywne menu na podstawie nazwy pliku
+    (function() {
+        const path = window.location.pathname;
+        if (path.endsWith('index.html') || path === '/' || path === '') {
+            document.getElementById('menu-index').classList.add('active');
+        } else if (path.endsWith('ass2srt.html')) {
+            document.getElementById('menu-ass2srt').classList.add('active');
+        }
+    })();
+
     async function searchSubtitles() {
         const title = document.getElementById('title').value.trim();
         const season = document.getElementById('season').value.trim();
