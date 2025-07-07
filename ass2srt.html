@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Konwerter ASS do SRT</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --main-bg: #f7fafc;
+            --main-accent: #4f8cff;
+            --main-accent-dark: #2563eb;
+            --main-border: #e2e8f0;
+            --main-text: #22223b;
+            --input-bg: #fff;
+            --input-border: #d1d5db;
+            --radius: 12px;
+            --shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: var(--main-bg);
+            color: var(--main-text);
+            font-family: 'Inter', Arial, sans-serif;
+        }
+        .container {
+            max-width: 600px;
+            margin: 40px auto 0 auto;
+            background: #fff;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 32px 24px 24px 24px;
+        }
+        h1 {
+            font-size: 2.1rem;
+            font-weight: 600;
+            margin: 0 0 16px 0;
+            letter-spacing: -1px;
+            color: var(--main-accent-dark);
+            text-align: center;
+        }
+        .desc {
+            text-align: center;
+            font-size: 1.08rem;
+            color: #5a5a89;
+            margin-bottom: 24px;
+        }
+        .form-group {
+            margin-bottom: 18px;
+        }
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 7px;
+            color: #44446b;
+        }
+        input[type="file"] {
+            display: block;
+            margin-bottom: 10px;
+        }
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            border: 1.5px solid var(--input-border);
+            border-radius: var(--radius);
+            padding: 12px;
+            font-size: 1rem;
+            font-family: 'Inter', monospace, Arial;
+            background: var(--input-bg);
+            resize: vertical;
+            margin-bottom: 8px;
+            color: var(--main-text);
+            box-sizing: border-box;
+            transition: border 0.2s;
+        }
+        textarea:focus {
+            border-color: var(--main-accent);
+            outline: none;
+        }
+        .btn-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+        button {
+            padding: 10px 28px;
+            background: var(--main-accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.18s;
+            box-shadow: 0 1px 4px rgba(79,140,255,0.08);
+        }
+        button:active {
+            background: var(--main-accent-dark);
+        }
+        button:disabled {
+            background: #bcd4fa;
+            cursor: not-allowed;
+        }
+        #downloadBtn {
+            display: none;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 32px;
+            color: #8a8aa9;
+            font-size: 0.98rem;
+        }
+        @media (max-width: 700px) {
+            .container {
+                max-width: 98vw;
+                padding: 16px 4vw 16px 4vw;
+            }
+            h1 {
+                font-size: 1.35rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Konwerter ASS do SRT</h1>
+        <div class="desc">
+            Wybierz plik <b>.ass</b> lub wklej napisy poniżej.<br>
+            Konwersja z usuwaniem duplikatów i poprawnym czasem trwania.<br>
+            Pobierz gotowy plik <b>.srt</b> jednym kliknięciem.
+        </div>
+        <div class="form-group">
+            <label for="fileInput">Plik z napisami (.ass):</label>
+            <input type="file" id="fileInput" accept=".ass">
+        </div>
+        <div class="form-group">
+            <label for="assInput">Lub wklej zawartość pliku ASS:</label>
+            <textarea id="assInput" placeholder="Wklej tutaj napisy w formacie .ass"></textarea>
+        </div>
+        <div class="btn-row">
+            <button onclick="convertAssToSrt()">Konwertuj do SRT</button>
+            <button id="downloadBtn">Pobierz plik SRT</button>
+        </div>
+        <div class="form-group">
+            <label for="srtOutput">Wynikowy plik SRT:</label>
+            <textarea id="srtOutput" placeholder="Tutaj pojawi się wynik w formacie .srt" readonly></textarea>
+        </div>
+    </div>
+    <div class="footer">
+        &copy; 2025 Konwerter ASS &rarr; SRT &middot; Inspirowane <span style="color:#4f8cff;">krzysztof-kody.github.io/napisy</span>
+    </div>
+    <script>
+        let suggestedFileName = "napisy.srt";
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                document.getElementById('assInput').value = evt.target.result;
+                suggestedFileName = file.name.replace(/\.ass$/i, ".srt");
+            };
+            reader.readAsText(file, 'UTF-8');
+        });
+
+        function assTimeToMs(assTime) {
+            let [h, m, s] = assTime.split(":");
+            let [sec, cs] = s.split(".");
+            return (
+                parseInt(h) * 3600000 +
+                parseInt(m) * 60000 +
+                parseInt(sec) * 1000 +
+                parseInt(cs) * 10
+            );
+        }
+        function msToSrtTime(ms) {
+            let h = Math.floor(ms / 3600000);
+            ms %= 3600000;
+            let m = Math.floor(ms / 60000);
+            ms %= 60000;
+            let s = Math.floor(ms / 1000);
+            let msLeft = ms % 1000;
+            return (
+                String(h).padStart(2, "0") + ":" +
+                String(m).padStart(2, "0") + ":" +
+                String(s).padStart(2, "0") + "," +
+                String(msLeft).padStart(3, "0")
+            );
+        }
+
+        function assToSrt(assText) {
+            const lines = assText.split(/\r?\n/);
+            let dialogueLines = [];
+            let inEvents = false;
+
+            for (let line of lines) {
+                if (line.trim() === "[Events]") {
+                    inEvents = true;
+                    continue;
+                }
+                if (inEvents) {
+                    if (line.startsWith("Dialogue:")) {
+                        dialogueLines.push(line);
+                    } else if (line.startsWith("[")) {
+                        break;
+                    }
+                }
+            }
+
+            let dialogues = [];
+            for (let dialogue of dialogueLines) {
+                let parts = dialogue.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/);
+                if (parts.length < 10) continue;
+                let start = parts[1].trim();
+                let end = parts[2].trim();
+                let text = parts.slice(9).join(",").trim();
+                text = text.replace(/\{[^}]+\}/g, '');
+                text = text.replace(/\\N/g, '\n');
+                dialogues.push({
+                    startMs: assTimeToMs(start),
+                    endMs: assTimeToMs(end),
+                    text: text.trim()
+                });
+            }
+
+            let uniqueMap = new Map();
+            for (let dlg of dialogues) {
+                let key = dlg.startMs + "|" + dlg.endMs + "|" + dlg.text;
+                if (!uniqueMap.has(key)) {
+                    uniqueMap.set(key, dlg);
+                }
+            }
+            let uniqueDialogues = Array.from(uniqueMap.values());
+            uniqueDialogues.sort((a, b) => a.startMs - b.startMs);
+
+            for (let i = 0; i < uniqueDialogues.length; i++) {
+                let curr = uniqueDialogues[i];
+                let next = uniqueDialogues[i + 1];
+                let desiredEnd = curr.startMs + 2000;
+                if (next && next.startMs < desiredEnd) {
+                    curr.endMs = next.startMs;
+                } else {
+                    curr.endMs = Math.min(desiredEnd, curr.endMs);
+                }
+            }
+
+            let srt = "";
+            for (let i = 0; i < uniqueDialogues.length; i++) {
+                let dlg = uniqueDialogues[i];
+                if (dlg.endMs <= dlg.startMs) continue;
+                srt +=
+                    (i + 1) + "\n" +
+                    msToSrtTime(dlg.startMs) + " --> " + msToSrtTime(dlg.endMs) + "\n" +
+                    dlg.text + "\n\n";
+            }
+            return srt.trim();
+        }
+
+        function convertAssToSrt() {
+            const assInput = document.getElementById('assInput').value;
+            const srtResult = assToSrt(assInput);
+            document.getElementById('srtOutput').value = srtResult;
+            const downloadBtn = document.getElementById('downloadBtn');
+            if (srtResult) {
+                downloadBtn.style.display = 'inline-block';
+            } else {
+                downloadBtn.style.display = 'none';
+            }
+        }
+
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            const srtText = document.getElementById('srtOutput').value;
+            const blob = new Blob([srtText], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = suggestedFileName;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 0);
+        });
+    </script>
+</body>
+</html>
