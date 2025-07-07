@@ -91,6 +91,9 @@
             padding: 0.8em 0.5em;
             text-align: left;
         }
+        td.filename{
+            max-width: 327px;
+        }
         th {
             background: #eaf0fa;
             color: #29406b;
@@ -224,7 +227,7 @@
                 for (const sub of linksFound) {
                     tableHtml += `
                     <tr>
-                      <td>${sub.filename}</td>
+                      <td class=filename>${sub.filename}</td>
                       <td>${sub.desc}</td>
                       <td><a href="${sub.url}" class="download-link" download>Pobierz</a></td>
                     </tr>
