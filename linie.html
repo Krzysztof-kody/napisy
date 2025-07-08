@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Dzielenie linii w napisach SRT</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f6fa; color: #222; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.07); padding: 32px 24px 24px 24px; }
+    h2 { text-align: center; margin-bottom: 24px; color: #1a73e8; }
+    label { display: block; margin: 18px 0 8px 0; font-weight: 500; }
+    input[type="file"] { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ccc; font-size: 1em; margin-bottom: 10px; }
+    textarea { width: 100%; min-height: 220px; font-family: monospace; font-size: 1em; border-radius: 6px; border: 1px solid #ccc; padding: 8px; box-sizing: border-box; margin-bottom: 10px; resize: vertical; }
+    .actions { display: flex; gap: 12px; margin-top: 16px; justify-content: center; }
+    button { background: #1a73e8; color: #fff; border: none; border-radius: 6px; padding: 10px 18px; font-size: 1em; cursor: pointer; transition: background 0.2s; }
+    button:disabled { background: #b0c9f7; cursor: not-allowed; }
+    .preview { background: #f8fafc; border-radius: 8px; padding: 10px; margin-top: 18px; font-size: 0.95em; max-height: 160px; overflow-y: auto; border: 1px solid #e3e6ea; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Automatyczne dzielenie długich linii SRT</h2>
+    <label for="srtFile">Wybierz plik SRT:</label>
+    <input type="file" id="srtFile" accept=".srt">
+    <label for="srtArea">Edytuj napisy (format SRT):</label>
+    <textarea id="srtArea" spellcheck="false"></textarea>
+    <div class="actions">
+      <button id="processBtn" disabled>Podziel długie linie</button>
+      <button id="downloadBtn" disabled>Pobierz SRT</button>
+    </div>
+    <div class="preview" id="preview"></div>
+  </div>
+  <script>
+    let originalName = '';
+
+    // Funkcja dzieląca linie na możliwie równe, nie rozdzielając słów i nie zostawiając pojedynczych słów
+    function splitLineBalanced(line, maxLen) {
+      if (line.length <= maxLen) return [line];
+      let words = line.split(' ');
+      let lines = [];
+      let currentLine = '';
+      for (let i = 0; i < words.length; i++) {
+        let testLine = currentLine ? currentLine + ' ' + words[i] : words[i];
+        if (testLine.length <= maxLen) {
+          currentLine = testLine;
+        } else {
+          if (currentLine) lines.push(currentLine);
+          currentLine = words[i];
+        }
+      }
+      if (currentLine) lines.push(currentLine);
+
+      // Po wstępnym podziale — spróbuj zbalansować, by nie zostawiać pojedynczych słów
+      for (let i = 0; i < lines.length - 1; i++) {
+        let thisWords = lines[i].split(' ');
+        let nextWords = lines[i+1].split(' ');
+        // Jeśli następna linia to jedno słowo i można je dodać do obecnej
+        if (nextWords.length === 1 && (lines[i].length + 1 + nextWords[0].length) <= maxLen) {
+          lines[i] += ' ' + nextWords[0];
+          lines.splice(i+1, 1);
+          i--; // sprawdź ponownie
+        }
+      }
+      // Jeśli zostały 3 linie, a ostatnia ma tylko jedno słowo, spróbuj zbalansować dwie ostatnie
+      if (lines.length > 1 && lines[lines.length-1].split(' ').length === 1) {
+        let prev = lines[lines.length-2].split(' ');
+        let last = lines[lines.length-1];
+        if (prev.length > 1) {
+          let moved = prev.pop();
+          lines[lines.length-2] = prev.join(' ');
+          lines[lines.length-1] = moved + ' ' + last;
+        }
+      }
+      return lines;
+    }
+
+    function processSrt(srt, maxLen) {
+      let blocks = srt.split(/\r?\n\r?\n/);
+      let resultBlocks = [];
+      for (let block of blocks) {
+        let lines = block.split(/\r?\n/);
+        if (lines.length < 3) {
+          resultBlocks.push(block);
+          continue;
+        }
+        let index = lines[0];
+        let time = lines[1];
+        let textLines = lines.slice(2);
+        let newTextLines = [];
+        for (let line of textLines) {
+          if (line.length > maxLen) {
+            let splitLines = splitLineBalanced(line, maxLen);
+            newTextLines.push(...splitLines);
+          } else {
+            newTextLines.push(line);
+          }
+        }
+        let newBlock = [index, time, ...newTextLines].join('\r\n');
+        resultBlocks.push(newBlock);
+      }
+      return resultBlocks.join('\r\n\r\n');
+    }
+
+    document.getElementById('srtFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      originalName = file.name.replace(/\.srt$/i, '');
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        document.getElementById('srtArea').value = ev.target.result;
+        document.getElementById('processBtn').disabled = false;
+        document.getElementById('downloadBtn').disabled = true;
+        document.getElementById('preview').textContent = '';
+      };
+      reader.readAsText(file, 'UTF-8');
+    });
+
+    document.getElementById('processBtn').addEventListener('click', function() {
+      const srt = document.getElementById('srtArea').value;
+      const maxLen = 50;
+      const processed = processSrt(srt, maxLen);
+      document.getElementById('srtArea').value = processed;
+      document.getElementById('preview').textContent = processed.split('\r\n').slice(0, 12).join('\r\n') + '\r\n...';
+      document.getElementById('downloadBtn').disabled = false;
+    });
+
+    document.getElementById('downloadBtn').addEventListener('click', function() {
+      const processed = document.getElementById('srtArea').value;
+      const blob = new Blob([processed], { type: 'text/plain' });
+      const newName = originalName + '_lines.srt';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = newName;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+    });
+  </script>
+</body>
+</html>
