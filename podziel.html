@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Podział napisów na setki</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f8f8f8; }
+        .chunk { position: relative; width: 30%; float: left; background: #fff; margin: 20px 0; padding: 16px; border-radius: 8px; box-shadow: 0 2px 8px #0001; }
+        .chunk textarea { width: 100%; height: 50px; }
+        .copy-btn { clear: both; margin-top: 8px; padding: 6px 16px; background: #0077ff; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+        .copy-btn:active { background: #005fcc; }
+        #chunks { margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <h1>Podziel napisy na setki elementów</h1>
+    <input type="file" id="subtitleFile" accept=".srt,.vtt,.txt,.ass" />
+    <div id="chunks"></div>
+
+    <script>
+        // Dziel na "elementy dialogowe", zachowując oryginalny format
+        function parseSubtitlesElements(text, fileName) {
+            const ext = fileName.split('.').pop().toLowerCase();
+
+            if (ext === 'ass') {
+                // ASS: wyciągamy wszystkie linie do sekcji [Events], potem tylko linie "Dialogue:"
+                const lines = text.split(/\r?\n/);
+                let inEvents = false;
+                let header = [];
+                let elements = [];
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    if (!inEvents) {
+                        header.push(line);
+                        if (line.trim().toLowerCase() === '[events]') inEvents = true;
+                        continue;
+                    }
+                    // Zbieramy tylko linie Dialogue (ale można rozszerzyć na inne typy, np. Comment)
+                    if (line.startsWith('Dialogue:')) {
+                        elements.push(line);
+                    }
+                }
+                return {header: header.join('\n'), elements: elements};
+            }
+
+            if (ext === 'srt') {
+                // SRT: element = numer, czas, linie dialogowe, pusta linia
+                const blocks = text.split(/\r?\n\r?\n/);
+                let elements = [];
+                for (let block of blocks) {
+                    block = block.trim();
+                    if (block) elements.push(block);
+                }
+                return {header: '', elements: elements};
+            }
+
+            if (ext === 'vtt') {
+                // VTT: nagłówek (WEBVTT), potem bloki rozdzielone pustą linią
+                const lines = text.split(/\r?\n/);
+                let header = [];
+                let elements = [];
+                let block = [];
+                let firstBlock = true;
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    if (firstBlock && (line.startsWith('WEBVTT') || line.trim() === '')) {
+                        header.push(line);
+                        continue;
+                    }
+                    firstBlock = false;
+                    if (line.trim() === '') {
+                        if (block.length > 0) {
+                            elements.push(block.join('\n'));
+                            block = [];
+                        }
+                    } else {
+                        block.push(line);
+                    }
+                }
+                if (block.length > 0) elements.push(block.join('\n'));
+                return {header: header.join('\n'), elements: elements};
+            }
+
+            // TXT lub inne: dziel na linie, po 100 linii do setki
+            const lines = text.split(/\r?\n/);
+            return {header: '', elements: lines.filter(l => l.trim().length > 0)};
+        }
+
+        function chunkArray(arr, size) {
+            let chunks = [];
+            for (let i = 0; i < arr.length; i += size) {
+                chunks.push(arr.slice(i, i + size));
+            }
+            return chunks;
+        }
+
+        document.getElementById('subtitleFile').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const {header, elements} = parseSubtitlesElements(text, file.name);
+                const chunks = chunkArray(elements, 100);
+                displayChunks(chunks, header, file.name);
+            };
+            reader.readAsText(file, 'UTF-8');
+        });
+
+        function displayChunks(chunks, header, fileName) {
+            const container = document.getElementById('chunks');
+            container.innerHTML = '';
+            const ext = fileName.split('.').pop().toLowerCase();
+
+            chunks.forEach((chunk, idx) => {
+                const chunkDiv = document.createElement('div');
+                chunkDiv.className = 'chunk';
+                const textarea = document.createElement('textarea');
+                let chunkText = '';
+                if (idx === 0 && header && header.trim().length > 0) {
+                    chunkText += header.trim() + '\n';
+                    if (ext === 'vtt' || ext === 'ass') chunkText += '\n';
+                }
+                if (ext === 'srt' || ext === 'vtt') {
+                    chunkText += chunk.join('\n\n');
+                } else if (ext === 'ass') {
+                    chunkText += chunk.join('\n');
+                } else {
+                    chunkText += chunk.join('\n');
+                }
+                textarea.value = chunkText.trim();
+                textarea.readOnly = true;
+                const btn = document.createElement('button');
+                btn.className = 'copy-btn';
+                btn.textContent = `Kopiuj setkę #${idx + 1}`;
+                btn.onclick = () => {
+                    textarea.select();
+                    document.execCommand('copy');
+                    btn.textContent = 'Skopiowano!';
+                    setTimeout(() => btn.textContent = `Kopiuj setkę #${idx + 1}`, 1200);
+                };
+                chunkDiv.appendChild(textarea);
+                chunkDiv.appendChild(btn);
+                container.appendChild(chunkDiv);
+            });
+        }
+    </script>
+</body>
+</html>
